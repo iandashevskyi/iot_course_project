@@ -2,14 +2,30 @@ import json
 import time
 import paho.mqtt.client as mqtt
 import numpy as np
+import os
+import shutil
 from stable_baselines3 import DQN
 
-MQTT_BROKER = "localhost"
+MQTT_BROKER = "172.16.22.167"
 MQTT_PORT = 1883
 TOPIC_SENSORS = "iot_proj/sensors"
 TOPIC_ACTIONS = "iot_proj/actions"
+TOPIC_TARGETS = "iot_proj/targets"
+
+# Глобальные комфортные диапазоны по умолчанию
+global_targets = {
+    "temp_min": 21.0,
+    "temp_max": 24.0,
+    "hum_min": 40.0,
+    "hum_max": 60.0,
+    "co2_max": 800.0
+}
 
 try:
+    if os.path.exists("dqn_climate_agent"):
+        print("Упаковка агента из папки dqn_climate_agent...")
+        shutil.make_archive("agent", "zip", "dqn_climate_agent")
+        
     print("Загрузка агента из agent.zip...")
     agent = DQN.load("agent.zip")
     print("Агент успешно загружен!")
@@ -32,11 +48,14 @@ def validate_sensor_data(data):
         
     return [in_temp, in_hum, in_co2]
 
+# Фильтры действий удалены по просьбе пользователя. Агенту полностью доверяем.
+
 def on_connect(client, userdata, flags, reason_code, properties):
     if reason_code == 0:
         print(f"Успешно подключились к MQTT-брокеру {MQTT_BROKER}")
         client.subscribe(TOPIC_SENSORS)
-        print(f"Подписаны на топик: {TOPIC_SENSORS}")
+        client.subscribe(TOPIC_TARGETS)
+        print(f"Подписаны на топики: {TOPIC_SENSORS}, {TOPIC_TARGETS}")
     else:
         print(f"Ошибка подключения: {reason_code}")
 
@@ -44,23 +63,42 @@ def on_message(client, userdata, msg):
     try:
         payload = msg.payload.decode("utf-8")
         data = json.loads(payload)
-        print(f"[СЕРВЕР] Получены данные: {data}")
         
-        #валидация данных
+        if msg.topic == TOPIC_TARGETS:
+            print(f"[СЕРВЕР] Получены новые настройки комфорта: {data}")
+            if "temperatureC" in data:
+                global_targets["temp_min"] = data["temperatureC"].get("min", global_targets["temp_min"])
+                global_targets["temp_max"] = data["temperatureC"].get("max", global_targets["temp_max"])
+            if "humidityPct" in data:
+                global_targets["hum_min"] = data["humidityPct"].get("min", global_targets["hum_min"])
+                global_targets["hum_max"] = data["humidityPct"].get("max", global_targets["hum_max"])
+            if "co2Ppm" in data:
+                global_targets["co2_max"] = data["co2Ppm"].get("max", global_targets["co2_max"])
+            return
+
+        print(f"[СЕРВЕР] Получены данные датчиков: {data}")
+        
+        # Валидация данных
         valid_data = validate_sensor_data(data)
         if valid_data is None:
             print("[СЕРВЕР] Данные не прошли валидацию. Пропуск.")
             return
             
-        #агент ожидает вектор (in_temp, in_hum, in_co2)
-        obs = np.array(valid_data, dtype=np.float32)
+        # Агент ожидает вектор из 8 значений (in_temp, in_hum, in_co2, target_temp_min, target_temp_max, target_hum_min, target_hum_max, target_co2_max)
+        obs_list = valid_data + [
+            global_targets["temp_min"],
+            global_targets["temp_max"],
+            global_targets["hum_min"],
+            global_targets["hum_max"],
+            global_targets["co2_max"]
+        ]
+        obs = np.array(obs_list, dtype=np.float32)
         
-        #получаем действие от агента
+        # Получаем действие от агента
         action, _states = agent.predict(obs, deterministic=True)
-        action_val = int(action) #действие - дискретное значение 0-63
+        action_val = int(action) # Действие - дискретное значение 0-63
         
-        #фильтр действий
-        #отправляем действие обратно по MQTT
+        # Отправляем сырое действие обратно по MQTT (без фильтров)
         action_payload = json.dumps({"action": action_val})
         client.publish(TOPIC_ACTIONS, action_payload)
         print(f"[СЕРВЕР] Отправлено действие {action_val} в топик {TOPIC_ACTIONS}\n")

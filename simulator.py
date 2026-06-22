@@ -3,7 +3,7 @@ import time
 import random
 import paho.mqtt.client as mqtt
 
-MQTT_BROKER = "localhost"
+MQTT_BROKER = "172.16.22.167"
 MQTT_PORT = 1883
 TOPIC_SENSORS = "iot_proj/sensors"
 TOPIC_ACTIONS = "iot_proj/actions"
@@ -19,11 +19,11 @@ def on_message(client, userdata, msg):
     payload = msg.payload.decode("utf-8")
     print(f"\n[СИМУЛЯТОР ESP32] Получена команда (Action): {payload}")
     
-    # Расшифровка дискретного действия 0-63
+    #расшифровка дискретного действия 0-63
     try:
         data = json.loads(payload)
         action_val = data.get("action", 0)
-        # Пример: 6 битов, где каждый бит означает включение определенного реле
+        #6 бит. каждый означает включение определенного реле
         binary_action = format(action_val, '06b')
         print(f"   Реле 1 (Обогреватель): {'ВКЛ' if binary_action[5]=='1' else 'ВЫКЛ'}")
         print(f"   Реле 2 (Кондиционер):  {'ВКЛ' if binary_action[4]=='1' else 'ВЫКЛ'}")
@@ -41,11 +41,10 @@ client.on_message = on_message
 print("Подключение к брокеру...")
 try:
     client.connect(MQTT_BROKER, MQTT_PORT, 60)
-    client.loop_start() # Запускаем в фоновом потоке
+    client.loop_start()
     
     # Генерация данных
     while True:
-        # Генерируем случайные данные, имитируя датчики (температура, влажность, CO2)
         sensor_data = {
             "in_temp": round(random.uniform(20.0, 30.0), 1),
             "in_hum": round(random.uniform(30.0, 60.0), 1),
@@ -59,7 +58,7 @@ try:
         print(f"Отправка данных датчиков: {payload}")
         client.publish(TOPIC_SENSORS, payload)
         
-        time.sleep(5) # Отправляем каждые 5 секунд
+        time.sleep(5)
 
 except KeyboardInterrupt:
     print("Остановка симулятора...")
