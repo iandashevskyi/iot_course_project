@@ -1,0 +1,13 @@
+# Target labels
+ bootloader
+# Source files and their labels
+D:/IoT/iot_proj/esp32_room_firmware/build/CMakeFiles/bootloader
+D:/IoT/iot_proj/esp32_room_firmware/build/CMakeFiles/bootloader.rule
+D:/IoT/iot_proj/esp32_room_firmware/build/CMakeFiles/bootloader-complete.rule
+D:/IoT/iot_proj/esp32_room_firmware/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule
+D:/IoT/iot_proj/esp32_room_firmware/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule
+D:/IoT/iot_proj/esp32_room_firmware/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule
+D:/IoT/iot_proj/esp32_room_firmware/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule
+D:/IoT/iot_proj/esp32_room_firmware/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule
+D:/IoT/iot_proj/esp32_room_firmware/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule
+D:/IoT/iot_proj/esp32_room_firmware/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule

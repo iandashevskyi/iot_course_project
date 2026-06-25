@@ -1,0 +1,2 @@
+source D:/IoT/iot_proj/esp32_room_firmware/build/bootloader/gdbinit/symbols
+source D:/IoT/iot_proj/esp32_room_firmware/build/bootloader/gdbinit/connect

@@ -11,8 +11,10 @@ MQTT_PORT = 1883
 TOPIC_SENSORS = "iot_proj/sensors"
 TOPIC_ACTIONS = "iot_proj/actions"
 TOPIC_TARGETS = "iot_proj/targets"
+TOPIC_MODE = "iot_proj/mode"
 
-# Глобальные комфортные диапазоны по умолчанию
+current_mode = "auto"
+
 global_targets = {
     "temp_min": 21.0,
     "temp_max": 24.0,
@@ -22,12 +24,9 @@ global_targets = {
 }
 
 try:
-    if os.path.exists("dqn_climate_agent"):
-        print("Упаковка агента из папки dqn_climate_agent...")
-        shutil.make_archive("agent", "zip", "dqn_climate_agent")
-        
-    print("Загрузка агента из agent.zip...")
-    agent = DQN.load("agent.zip")
+    agent_path = "dqn_climate_agent_new.zip" if os.path.exists("dqn_climate_agent_new.zip") else "agent.zip"
+    print(f"Загрузка агента из {agent_path}...")
+    agent = DQN.load(agent_path)
     print("Агент успешно загружен!")
 except Exception as e:
     print(f"Ошибка загрузки агента: {e}")
@@ -55,7 +54,8 @@ def on_connect(client, userdata, flags, reason_code, properties):
         print(f"Успешно подключились к MQTT-брокеру {MQTT_BROKER}")
         client.subscribe(TOPIC_SENSORS)
         client.subscribe(TOPIC_TARGETS)
-        print(f"Подписаны на топики: {TOPIC_SENSORS}, {TOPIC_TARGETS}")
+        client.subscribe(TOPIC_MODE)
+        print(f"Подписаны на топики: {TOPIC_SENSORS}, {TOPIC_TARGETS}, {TOPIC_MODE}")
     else:
         print(f"Ошибка подключения: {reason_code}")
 
@@ -76,8 +76,23 @@ def on_message(client, userdata, msg):
                 global_targets["co2_max"] = data["co2Ppm"].get("max", global_targets["co2_max"])
             return
 
+        if msg.topic == TOPIC_MODE:
+            global current_mode
+            if "mode" in data:
+                current_mode = data["mode"]
+                print(f"[СЕРВЕР] Изменен режим работы на: {current_mode}")
+            return
+
         print(f"[СЕРВЕР] Получены данные датчиков: {data}")
         
+        if current_mode == "manual":
+            # В ручном режиме сервер не применяет действия агента
+            return
+
+        if "in_temp" not in data:
+            # Если это данные с уличного датчика, агенту они не нужны
+            return
+
         # Валидация данных
         valid_data = validate_sensor_data(data)
         if valid_data is None:
