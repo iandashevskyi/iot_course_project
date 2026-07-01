@@ -6,7 +6,7 @@ import os
 import shutil
 from stable_baselines3 import DQN
 
-MQTT_BROKER = "172.16.22.167"
+MQTT_BROKER = "172.16.22.117"
 MQTT_PORT = 1883
 TOPIC_SENSORS = "iot_proj/sensors"
 TOPIC_ACTIONS = "iot_proj/actions"
@@ -33,7 +33,6 @@ except Exception as e:
     exit(1)
 
 def validate_sensor_data(data):
-    # Базовая валидация диапазонов (например, температура не больше 80)
     in_temp = data.get("in_temp", 25.0)
     in_hum = data.get("in_hum", 50.0)
     in_co2 = data.get("in_co2", 400.0)
@@ -42,12 +41,11 @@ def validate_sensor_data(data):
         return None
     if in_hum > 100.0 or in_hum < 0.0:
         return None
-    if in_co2 > 3000.0 or in_co2 < 300.0:
+    if in_co2 > 10000.0 or in_co2 < 300.0:
         return None
         
     return [in_temp, in_hum, in_co2]
 
-# Фильтры действий удалены по просьбе пользователя. Агенту полностью доверяем.
 
 def on_connect(client, userdata, flags, reason_code, properties):
     if reason_code == 0:
@@ -86,20 +84,17 @@ def on_message(client, userdata, msg):
         print(f"[СЕРВЕР] Получены данные датчиков: {data}")
         
         if current_mode == "manual":
-            # В ручном режиме сервер не применяет действия агента
             return
 
         if "in_temp" not in data:
-            # Если это данные с уличного датчика, агенту они не нужны
             return
 
-        # Валидация данных
         valid_data = validate_sensor_data(data)
         if valid_data is None:
             print("[СЕРВЕР] Данные не прошли валидацию. Пропуск.")
             return
             
-        # Агент ожидает вектор из 8 значений (in_temp, in_hum, in_co2, target_temp_min, target_temp_max, target_hum_min, target_hum_max, target_co2_max)
+        #ожидает вектор из 8 значений in_temp, in_hum, in_co2, target_temp_min, target_temp_max, target_hum_min, target_hum_max, target_co2_max
         obs_list = valid_data + [
             global_targets["temp_min"],
             global_targets["temp_max"],
@@ -108,12 +103,8 @@ def on_message(client, userdata, msg):
             global_targets["co2_max"]
         ]
         obs = np.array(obs_list, dtype=np.float32)
-        
-        # Получаем действие от агента
         action, _states = agent.predict(obs, deterministic=True)
-        action_val = int(action) # Действие - дискретное значение 0-63
-        
-        # Отправляем сырое действие обратно по MQTT (без фильтров)
+        action_val = int(action)
         action_payload = json.dumps({"action": action_val})
         client.publish(TOPIC_ACTIONS, action_payload)
         print(f"[СЕРВЕР] Отправлено действие {action_val} в топик {TOPIC_ACTIONS}\n")
@@ -131,7 +122,6 @@ client.on_message = on_message
 print(f"Подключение к брокеру {MQTT_BROKER}...")
 try:
     client.connect(MQTT_BROKER, MQTT_PORT, 60)
-    #запуск цикла обработки
     client.loop_forever()
 except KeyboardInterrupt:
     print("Остановка сервера...")
